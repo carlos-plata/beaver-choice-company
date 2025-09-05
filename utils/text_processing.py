@@ -65,7 +65,10 @@ def extract_quantity_from_text(text: str) -> Optional[int]:
 def get_safe_response(agent_result) -> str:
     """Safely extract string from AgentRunResult object"""
     try:
-        if hasattr(agent_result, 'data'):
+        # Handle pydantic-ai AgentRunResult
+        if hasattr(agent_result, 'output'):
+            return str(agent_result.output)
+        elif hasattr(agent_result, 'data'):
             return str(agent_result.data)
         else:
             return str(agent_result)

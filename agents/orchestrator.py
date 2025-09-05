@@ -67,12 +67,23 @@ class OrchestratorAgent:
             {request_text}
             
             Analyze and extract:
-            1. Primary request type (quote/order/inventory_check/general_inquiry)
-            2. Specific product/item mentioned (be specific about paper types)
-            3. Quantity requested (extract numbers)
+            1. Primary request type - IMPORTANT CLASSIFICATION RULES:
+               - Use "order" if customer wants to buy/purchase/order products with specific quantities
+               - Use "quote" if customer asks for pricing information without committing to purchase
+               - Use "inventory_check" if customer asks about availability/stock only
+               - Use "general_inquiry" ONLY for questions about services, company info, or vague requests
+            
+            2. Specific product/item mentioned (pick the FIRST or most prominent item)
+            3. Quantity requested (extract the first number mentioned)
+            
+            Key indicators for "order":
+            - "I would like to order/request/buy..."
+            - Specific quantities mentioned (e.g., "200 sheets", "500 units")
+            - Delivery dates mentioned
+            - Multiple specific items listed
             
             Available products include: A4 paper, cardstock, colored paper, glossy paper, 
-            matte paper, poster paper, envelopes, napkins, cups, plates, etc.
+            matte paper, poster paper, envelopes, napkins, cups, plates, streamers, balloons, etc.
             
             Format response as: REQUEST_TYPE|PRODUCT_NAME|QUANTITY
             Use 'none' if information is not clearly specified."""
@@ -83,8 +94,14 @@ class OrchestratorAgent:
             
             # Parse AI response
             request_type_str = parts[0].strip().lower() if len(parts) > 0 else 'general_inquiry'
-            item_name = parts[1].strip() if len(parts) > 1 and parts[1].strip().lower() != 'none' else None
+            raw_item_name = parts[1].strip() if len(parts) > 1 and parts[1].strip().lower() != 'none' else None
             quantity_str = parts[2].strip() if len(parts) > 2 and parts[2].strip().lower() != 'none' else None
+            
+            # Improve item matching by using fuzzy matching for extracted item names
+            item_name = None
+            if raw_item_name:
+                item_match = find_best_item_match(raw_item_name.lower())
+                item_name = item_match['item_name'] if item_match else raw_item_name
             
             # Convert request type to enum
             request_type_map = {
@@ -124,11 +141,16 @@ class OrchestratorAgent:
             # Fallback to rule-based parsing
             request_text_lower = request_text.lower()
             
-            if any(keyword in request_text_lower for keyword in ['order', 'buy', 'purchase', 'place an order']):
+            # Enhanced order detection patterns
+            order_patterns = ['order', 'buy', 'purchase', 'place an order', 'request the following', 'i would like to request', 'i need to order', 'sheets of', 'delivered by', 'supplies for']
+            quote_patterns = ['quote', 'price', 'cost', 'how much', 'pricing']
+            inventory_patterns = ['stock', 'inventory', 'available', 'have', 'do you have']
+            
+            if any(pattern in request_text_lower for pattern in order_patterns):
                 request_type = RequestType.ORDER
-            elif any(keyword in request_text_lower for keyword in ['quote', 'price', 'cost', 'how much']):
+            elif any(pattern in request_text_lower for pattern in quote_patterns):
                 request_type = RequestType.QUOTE
-            elif any(keyword in request_text_lower for keyword in ['stock', 'inventory', 'available', 'have']):
+            elif any(pattern in request_text_lower for pattern in inventory_patterns):
                 request_type = RequestType.INVENTORY_CHECK
             else:
                 request_type = RequestType.GENERAL_INQUIRY
@@ -163,8 +185,17 @@ class OrchestratorAgent:
             
             logger.info(f"Processing {request.request_type.value} request from {customer_name}")
             
+            # Enhanced business logic: override AI classification for obvious orders
+            has_specific_request = request.item_name and request.quantity
+            has_order_language = any(pattern in request_text.lower() for pattern in [
+                'request the following', 'i would like to request', 'order for', 'need to order',
+                'supplies for', 'delivered by', 'sheets of', 'place an order'
+            ])
+            
             # Orchestrate appropriate workflow based on request type
-            if request.request_type == RequestType.ORDER and request.item_name and request.quantity:
+            if (request.request_type == RequestType.ORDER 
+                or (has_specific_request and has_order_language)
+                or (request.request_type == RequestType.QUOTE and request.quantity)):
                 # COMPLETE ORDER WORKFLOW with negotiation (Extra Credit)
                 
                 # Step 1: Generate initial quote
@@ -184,7 +215,7 @@ class OrchestratorAgent:
                 self.animator.complete_animation(f"Order {order.status} - ${order.total_amount:.2f}")
                 return response
                 
-            elif request.request_type == RequestType.QUOTE and request.item_name and request.quantity:
+            elif (request.request_type == RequestType.QUOTE and request.item_name and request.quantity) or (has_specific_request and not has_order_language):
                 # QUOTE-ONLY WORKFLOW
                 
                 quote = self.quoting_agent.generate_quote(request)

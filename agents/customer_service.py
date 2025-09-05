@@ -8,6 +8,7 @@ from pydantic_ai import Agent
 from typing import Dict
 
 from utils.text_processing import get_safe_response
+from project_starter import generate_financial_report
 
 logger = logging.getLogger(__name__)
 
@@ -33,15 +34,30 @@ class CustomerServiceAgent:
         self.animator = animator
     
     def format_response(self, response_data: Dict, request_type: str) -> str:
-        """Format professional customer response using AI"""
-        self.animator.update_step("Formatting professional response", "CUSTOMER SERVICE")
+        """Format professional customer response using AI with financial context"""
+        self.animator.update_step("Formatting professional response with financial analysis", "CUSTOMER SERVICE")
         
         try:
+            # Generate financial context for business insights
+            financial_context = ""
+            if request_type in ['order', 'quote'] and 'request_date' in response_data:
+                try:
+                    financial_report = generate_financial_report(response_data.get('request_date'))
+                    financial_context = f"""
+                    
+Company Financial Context (for internal analysis):
+- Current business health: Strong (${financial_report['cash_balance']:.2f} cash, ${financial_report['inventory_value']:.2f} inventory)
+- Service capacity: High availability
+- Delivery capability: Confirmed
+                    """
+                except Exception as e:
+                    logger.warning(f"Could not generate financial context: {e}")
+            
             # Create comprehensive prompt for AI response generation
             prompt = f"""Create a professional business response letter:
             
             Response Type: {request_type}
-            Customer Data: {json.dumps(response_data, indent=2)}
+            Customer Data: {json.dumps(response_data, indent=2)}{financial_context}
             
             Generate a complete, professional business letter that:
             - Uses proper business letter format
@@ -49,9 +65,10 @@ class CustomerServiceAgent:
             - Provides all relevant information clearly and completely
             - Uses a friendly yet professional tone
             - Includes appropriate business closing
-            - Never reveals sensitive internal company information
+            - NEVER reveals sensitive internal company information (cash balances, profit margins)
             - Explains any decisions or pricing clearly
             - Offers additional assistance when appropriate
+            - Uses financial context to provide confidence in delivery capabilities
             
             Make the response natural, helpful, and customer-focused."""
             

@@ -29,6 +29,7 @@ class OrderResponse(BaseModel):
     total_amount: float = Field(description="Total order amount")
     reason: str = Field(description="Explanation for status")
     transaction_id: Optional[int] = Field(description="Database transaction ID")
+    request_date: Optional[str] = Field(description="Request date for financial context")
 
 
 class InventoryResponse(BaseModel):

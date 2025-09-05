@@ -114,7 +114,18 @@ class CustomerNegotiationAgent:
             
             if len(parts) >= 2:
                 try:
-                    negotiated_price = float(parts[0].strip().replace('$', '').replace(',', ''))
+                    # Clean the price string by removing text prefixes
+                    price_str = parts[0].strip().replace('$', '').replace(',', '')
+                    # Extract only the numeric part (handle "FINAL_NEGOTIATED_PRICE: 36.00" format)
+                    if ':' in price_str:
+                        price_str = price_str.split(':')[-1].strip()
+                    # Remove any quotes or other text
+                    import re
+                    price_match = re.search(r'[\d.]+', price_str)
+                    if price_match:
+                        negotiated_price = float(price_match.group())
+                    else:
+                        raise ValueError(f"Could not extract price from: {price_str}")
                     negotiation_explanation = parts[1].strip()
                     
                     # Ensure minimum profitability (don't go below 80% of original price)

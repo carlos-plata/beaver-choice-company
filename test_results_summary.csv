@@ -1,0 +1,4 @@
+request_id,customer_name,request_date,response,cash_balance_after,transaction_created
+1,office manager,2025-04-01,Order confirmed - ORDER_21 for 200 sheets of Glossy paper,45095.7,True
+2,hotel manager,2025-04-02,Order rejected - insufficient stock for colorful poster paper,45095.7,False
+3,school board resouorce manager,2025-04-03,"Order rejected - insufficient stock for 10,000 sheets",45095.7,False

@@ -61,14 +61,29 @@ class SalesAgent:
             - Business risk assessment
             
             Make decision: APPROVE or REJECT with detailed business reasoning.
-            Format: DECISION|DETAILED_REASON"""
+            IMPORTANT: Format response exactly as: DECISION|DETAILED_REASON
+            Example: APPROVE|Order approved due to sufficient inventory and positive cash flow"""
             
             response = self.agent.run_sync(prompt)
             result = get_safe_response(response)
             parts = result.split('|')
             
-            decision = parts[0].strip().upper() if len(parts) > 0 else "REJECT"
-            detailed_reason = parts[1].strip() if len(parts) > 1 else "Insufficient information for decision"
+            # Improved parsing to handle various AI response formats
+            if len(parts) >= 2:
+                decision = parts[0].strip().upper()
+                detailed_reason = parts[1].strip()
+            else:
+                # Fallback parsing if no pipe separator
+                result_upper = result.upper()
+                if result_upper.startswith('APPROVE'):
+                    decision = "APPROVE"
+                    detailed_reason = result[7:].strip()  # Remove "APPROVE" prefix
+                elif result_upper.startswith('REJECT'):
+                    decision = "REJECT"
+                    detailed_reason = result[6:].strip()  # Remove "REJECT" prefix
+                else:
+                    decision = "REJECT"
+                    detailed_reason = "Unable to parse decision from response"
             
             # Execute decision based on AI analysis and business constraints
             if decision == "APPROVE" and current_stock >= quote.quantity:
@@ -87,7 +102,8 @@ class SalesAgent:
                     status="confirmed",
                     total_amount=quote.total_price,
                     reason=f"Order approved: {detailed_reason}",
-                    transaction_id=transaction_id
+                    transaction_id=transaction_id,
+                    request_date=request_date
                 )
             else:
                 # Order rejection with AI reasoning
@@ -101,7 +117,8 @@ class SalesAgent:
                     status="rejected",
                     total_amount=0.0,
                     reason=f"Order rejected: {rejection_reason}",
-                    transaction_id=None
+                    transaction_id=None,
+                    request_date=request_date
                 )
                 
         except Exception as e:
@@ -112,5 +129,6 @@ class SalesAgent:
                 status="error",
                 total_amount=0.0,
                 reason=f"Order processing failed: {e}",
-                transaction_id=None
+                transaction_id=None,
+                request_date=request_date
             )
